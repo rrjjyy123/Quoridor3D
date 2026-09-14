@@ -11,8 +11,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="./assets/index-JCrw8mpn.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BlQtkk5M.css">
+    <script type="module" crossorigin src="./assets/index-wMS672SK.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-C1DFxANh.css">
   </head>
   <body>
     <div id="stage"></div>
@@ -58,6 +58,14 @@
           </div>
         </div>
 
+        <div class="field">
+          <label>무르기</label>
+          <div class="seg" id="undo-mode">
+            <button data-undo="off" class="active">끄기 <small>공식 규칙</small></button>
+            <button data-undo="on">켜기 <small>연습·초보용</small></button>
+          </div>
+        </div>
+
         <div class="actions">
           <button id="btn-rules-open" class="btn ghost">규칙 보기</button>
           <button id="btn-resume" class="btn ghost" hidden>이어하기</button>
@@ -77,10 +85,15 @@
         <button class="icon-btn" id="btn-menu" title="메뉴">☰</button>
       </div>
 
+      <div id="action-hint"></div>
       <div id="action-bar">
-        <div id="action-hint"></div>
+        <div class="seg big" id="mode-seg">
+          <button data-mode="move"><span class="ico">♟</span>말 이동</button>
+          <button data-mode="wall"><span class="ico">▮</span>벽 놓기 <b id="walls-left"></b></button>
+        </div>
         <button class="btn round" id="btn-rotate" title="벽 방향 (R / 우클릭)" hidden><span id="rotate-ico">━</span><small>방향</small></button>
         <button class="btn round confirm" id="btn-confirm" hidden><span>✓</span><small>확정</small></button>
+        <button class="btn round" id="btn-undo" title="무르기 (Ctrl+Z)" hidden><span>↶</span><small>무르기</small></button>
       </div>
 
       <div id="turn-banner"></div>
@@ -95,6 +108,7 @@
         <button class="btn block" id="btn-restart">같은 설정으로 다시 시작</button>
         <button class="btn block" id="btn-new">새 게임 설정</button>
         <button class="btn block" id="btn-rules">규칙 보기</button>
+        <button class="btn block" id="btn-undo-toggle">무르기: 끔</button>
         <button class="btn block" id="btn-quality">그래픽 품질: 높음</button>
       </div>
     </div>
@@ -141,13 +155,14 @@
             <li>벽은 다른 벽과 겹치거나 <b>십자로 교차할 수 없습니다</b>.</li>
             <li>어떤 플레이어든 목표까지 가는 <b>길을 완전히 막으면 안 됩니다</b>.</li>
             <li>한 번 놓은 벽은 옮기거나 되돌릴 수 없습니다. 벽을 다 쓰면 이동만 가능합니다.</li>
-            <li>한 번 둔 수는 무를 수 없습니다.</li>
+            <li>공식 규칙에는 무르기가 없습니다. (연습용으로 시작 화면·메뉴에서 켤 수 있음)</li>
           </ul>
           <h3>🖐 조작</h3>
           <ul>
-            <li><b>말 이동</b>: 내 말을 누르면 갈 수 있는 칸이 빛납니다 → 빛나는 칸을 누르세요.</li>
-            <li><b>벽 놓기</b>: 내 앞쪽 <b>벽 보관대</b>를 누르면 벽이 들립니다 → 칸 사이 홈을 누르세요.</li>
-            <li><b>PC</b>: 마우스를 올리면 벽 위치가 미리 보이고 클릭하면 설치 · <kbd>R</kbd>/우클릭 방향 전환 · <kbd>Esc</kbd> 선택 취소</li>
+            <li><b>말 이동</b>: 아래 <b>말 이동</b> 버튼 또는 내 말을 누르면 갈 수 있는 칸이 빛납니다 → 빛나는 칸을 누르세요.</li>
+            <li><b>벽 놓기</b>: 아래 <b>벽 놓기</b> 버튼 또는 내 앞쪽 <b>벽 보관대</b>를 누르면 벽이 들립니다 → 칸 사이 홈을 누르세요.</li>
+            <li>버튼과 화면 선택은 서로 연동됩니다. 선택된 것을 한 번 더 누르면 선택이 풀립니다.</li>
+            <li><b>PC</b>: 마우스를 올리면 벽 위치가 미리 보이고 클릭하면 설치 · <kbd>R</kbd>/우클릭 방향 전환 · <kbd>Space</kbd> 이동/벽 전환 · <kbd>Esc</kbd> 선택 취소 · <kbd>Ctrl+Z</kbd> 무르기(켰을 때)</li>
             <li><b>태블릿</b>: 벽 위치를 한 번 탭해 미리보기 → 같은 곳을 다시 탭하거나 <b>✓ 확정</b>, 방향은 <b>방향</b> 버튼</li>
             <li>드래그로 시점 회전, 휠/두 손가락으로 확대·축소</li>
           </ul>
