@@ -16,8 +16,8 @@ npm run build    # dist/ 생성
 
 ## 배포
 
-`main` 브랜치에 push 하면 GitHub Actions 가 테스트 → 빌드 후 `gh-pages` 브랜치로 배포합니다.
-(저장소 Settings → Pages 의 Source 가 `gh-pages` 브랜치 / `/(root)` 인지 확인)
+`main` 브랜치에 push 하면 GitHub Actions 가 테스트 → 빌드 → GitHub Pages 배포까지 자동으로 합니다.
+(최초 1회: 저장소 Settings → Pages → Source 를 **GitHub Actions** 로 선택)
 
 ## 규칙 요약
 
