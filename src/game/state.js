@@ -1,11 +1,11 @@
-// 게임 진행 관리: 행동 기록, 자동 저장 (공식 규칙에 무르기 없음)
+// 게임 진행 관리: 행동 기록, 무르기(설정에서 켤 때만), 자동 저장
 import { createGame, applyAction } from './rules.js';
 
 const SAVE_KEY = 'kuorido3d.save.v1';
 
 export class GameSession {
   constructor(config) {
-    // config: { numPlayers, firstPlayer, players: [{ name, color }], cameraMode }
+    // config: { numPlayers, firstPlayer, players: [{ name, color }], cameraMode, allowUndo }
     this.config = config;
     this.actions = [];
     this.states = [createGame(config.numPlayers, config.firstPlayer)];
@@ -21,6 +21,19 @@ export class GameSession {
     this.states.push(next);
     this.save();
     return next;
+  }
+
+  // 공식 규칙에는 무르기가 없으므로 설정(allowUndo)을 켠 경우에만 허용
+  canUndo() {
+    return !!this.config.allowUndo && this.actions.length > 0 && this.game.winner === null;
+  }
+
+  undo() {
+    if (!this.canUndo()) return null;
+    const action = this.actions.pop();
+    this.states.pop();
+    this.save();
+    return action;
   }
 
   save() {

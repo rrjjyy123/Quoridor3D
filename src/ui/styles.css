@@ -475,13 +475,22 @@ select:focus {
   transition: opacity 0.3s;
 }
 #action-hint {
-  align-self: center;
-  padding: 8px 16px;
-  max-width: min(560px, calc(100vw - 180px));
+  position: absolute;
+  left: 50%;
+  bottom: calc(110px + var(--safe-bottom));
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   line-height: 1.5;
-  font-size: clamp(0.8rem, 2.4vw, 1rem);
+  font-size: clamp(0.8rem, 2.4vw, 0.95rem);
   color: var(--muted);
   text-align: center;
+  background: rgba(20, 12, 8, 0.72);
+  border: 1px solid rgba(214, 168, 92, 0.18);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
 }
 #action-hint b {
   color: var(--brass-hi);
@@ -599,7 +608,7 @@ select:focus {
 #toast {
   position: absolute;
   left: 50%;
-  bottom: calc(110px + var(--safe-bottom));
+  bottom: calc(158px + var(--safe-bottom));
   transform: translate(-50%, 10px);
   background: rgba(60, 18, 12, 0.92);
   border: 1px solid rgba(255, 122, 104, 0.5);

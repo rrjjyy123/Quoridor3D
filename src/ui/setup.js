@@ -22,6 +22,7 @@ export function initSetup({ onStart, onResume, onRules, hasSave }) {
   }
   let count = prefs.count === 4 ? 4 : 2;
   let cameraMode = prefs.cameraMode === 'top' ? 'top' : 'auto';
+  let allowUndo = prefs.allowUndo === true;
   const players = {
     2: prefs.players2 ?? DEFAULT_COLORS[2].map((c, i) => ({ name: `플레이어 ${i + 1}`, color: c })),
     4: prefs.players4 ?? DEFAULT_COLORS[4].map((c, i) => ({ name: `플레이어 ${i + 1}`, color: c })),
@@ -93,6 +94,14 @@ export function initSetup({ onStart, onResume, onRules, hasSave }) {
     $('#camera-mode').querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
   });
 
+  $('#undo-mode').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    allowUndo = b.dataset.undo === 'on';
+    $('#undo-mode').querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+  });
+
+  $('#undo-mode').querySelectorAll('button').forEach((x) => x.classList.toggle('active', (x.dataset.undo === 'on') === allowUndo));
   $('#player-count').querySelectorAll('button').forEach((x) => x.classList.toggle('active', Number(x.dataset.n) === count));
   $('#camera-mode').querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.dataset.mode === cameraMode));
 
@@ -100,11 +109,11 @@ export function initSetup({ onStart, onResume, onRules, hasSave }) {
     const list = players[count].map((p, i) => ({ name: p.name.trim() || `플레이어 ${i + 1}`, color: p.color }));
     const firstPlayer = first.value === 'random' ? Math.floor(Math.random() * count) : Number(first.value);
     try {
-      localStorage.setItem(PREF_KEY, JSON.stringify({ count, cameraMode, players2: players[2], players4: players[4] }));
+      localStorage.setItem(PREF_KEY, JSON.stringify({ count, cameraMode, allowUndo, players2: players[2], players4: players[4] }));
     } catch {
       /* 무시 */
     }
-    onStart({ numPlayers: count, firstPlayer, players: list, cameraMode });
+    onStart({ numPlayers: count, firstPlayer, players: list, cameraMode, allowUndo });
   });
 
   $('#btn-resume').addEventListener('click', onResume);

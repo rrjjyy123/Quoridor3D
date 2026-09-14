@@ -372,6 +372,41 @@ export class BoardView {
     this.shake(0.12);
   }
 
+  // ---------- 무르기 ----------
+  async undoMove(pi, to) {
+    const pawn = this.pawns[pi];
+    const from = pawn.position.clone();
+    const w = cellToWorld(to.x, to.y);
+    await tween({
+      duration: 0.35,
+      update: (e, k) => {
+        pawn.position.set(from.x + (w.x - from.x) * e, BOARD_TOP + Math.sin(k * Math.PI) * 0.6, from.z + (w.z - from.z) * e);
+      },
+    });
+    pawn.position.y = BOARD_TOP;
+  }
+
+  async undoWall(pi) {
+    const m = this.placed.pop();
+    this.storage[pi].push(m);
+    const s = this.storageSlot(pi, this.storage[pi].length - 1);
+    const from = m.position.clone();
+    const fromRot = m.rotation.y;
+    const toRot = shortestAngle(fromRot, s.rotY);
+    await tween({
+      duration: 0.5,
+      update: (e, k) => {
+        m.position.set(
+          from.x + (s.x - from.x) * e,
+          from.y + (BASE_TOP + 0.04 - from.y) * e + Math.sin(k * Math.PI) * 2,
+          from.z + (s.z - from.z) * e,
+        );
+        m.rotation.y = fromRot + (toRot - fromRot) * e;
+      },
+    });
+    this.layoutStorage(pi, 0);
+  }
+
   async celebrate(pi) {
     this.clearHints();
     const pawn = this.pawns[pi];

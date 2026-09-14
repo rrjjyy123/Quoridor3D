@@ -51,6 +51,7 @@ function onTurnStart(first = false) {
   hud.update(g, session.config);
   hud.setOrientation(orientation);
   setMode(null, { silent: true, instant: true });
+  updateUndo();
   hud.turnBanner(`${nameOf(g.current)} 차례`, colorOf(g.current));
   if (!first) sfx.turn();
   if (g.skipped?.length) {
@@ -103,10 +104,33 @@ async function perform(action) {
   else onTurnStart();
 }
 
+// ---------- 무르기 (설정에서 켰을 때만) ----------
+function updateUndo() {
+  const on = !!session?.config.allowUndo;
+  hud.setUndo(on, on && session.canUndo());
+  $('#btn-undo-toggle').textContent = `무르기: ${on ? '켬' : '끔 (공식 규칙)'}`;
+}
+
+async function undo() {
+  if (busy || !session?.canUndo()) return;
+  setMode(null, { silent: true, instant: true });
+  const a = session.undo();
+  busy = true;
+  hud.setBusy(true);
+  view.clearHints();
+  if (a.type === 'move') await view.undoMove(a.player, game().players[a.player]);
+  else await view.undoWall(a.player);
+  busy = false;
+  hud.setBusy(false);
+  onTurnStart(true);
+  hud.toast('한 수 물렀습니다', 'info');
+}
+
 async function onWin(pi) {
   const g = game();
   hud.update(g, session.config);
   hud.setMode(null, 0);
+  updateUndo();
   hud.setBusy(true);
   view.setTurn(g);
   sfx.win();
@@ -241,6 +265,20 @@ view.on('tap', (p, target, pointerType) => {
 view.on('rotate', () => rotate());
 view.on('land', (kind) => (kind === 'wall' ? sfx.wall() : sfx.pawn()));
 
+// 모드 버튼: 화면에서 말/보관대를 누르는 것과 같은 선택 상태를 공유
+$('#mode-seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || !playing()) return;
+  setMode(b.dataset.mode === mode ? null : b.dataset.mode);
+});
+$('#btn-undo').addEventListener('click', undo);
+$('#btn-undo-toggle').addEventListener('click', () => {
+  if (!session) return;
+  session.config.allowUndo = !session.config.allowUndo;
+  session.save();
+  updateUndo();
+  hud.toast(session.config.allowUndo ? '무르기를 켰습니다' : '무르기를 껐습니다 (공식 규칙)', 'info');
+});
 $('#btn-rotate').addEventListener('click', rotate);
 $('#btn-confirm').addEventListener('click', () => {
   if (pending && !busy) perform({ type: 'wall', ...pending });
@@ -255,6 +293,9 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Space' || e.key === ' ') {
     e.preventDefault();
     if (playing()) setMode(mode === 'move' ? 'wall' : 'move');
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undo();
   } else if (e.key === 'Escape') {
     if (mode && playing()) setMode(null);
     else toggleMenu();
@@ -372,4 +413,4 @@ const setup = initSetup({
 overlay('#loading', false);
 goToSetup();
 
-if (import.meta.env.DEV) window.__q = { view, perform, setMode, get session() { return session; } };
+if (import.meta.env.DEV) window.__q = { view, perform, setMode, undo, get session() { return session; } };

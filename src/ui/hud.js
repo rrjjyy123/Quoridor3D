@@ -40,17 +40,27 @@ export class Hud {
     });
   }
 
-  // 선택 상태에 따라 안내 문구와 방향 버튼 표시
+  // 선택 상태 표시: 모드 버튼, 안내 문구, 방향 버튼 (화면 직접 선택과 연동)
   setMode(mode, wallsLeft) {
+    $('#mode-seg')
+      .querySelectorAll('button')
+      .forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    $('#mode-seg').querySelector('[data-mode="wall"]').disabled = wallsLeft <= 0;
+    $('#walls-left').textContent = wallsLeft;
     const hint = $('#action-hint');
     if (mode === 'move') hint.innerHTML = '<b>♟ 말 이동</b> 빛나는 칸을 누르세요';
-    else if (mode === 'wall') hint.innerHTML = `<b>▮ 벽 놓기</b> 칸 사이 홈을 누르세요 <em>남은 벽 ${wallsLeft}</em>`;
+    else if (mode === 'wall') hint.innerHTML = '<b>▮ 벽 놓기</b> 칸 사이 홈을 누르세요';
     else
       hint.innerHTML =
         wallsLeft > 0
-          ? '<b>내 말</b>을 누르면 이동 · <b>내 벽 보관대</b>를 누르면 벽 놓기'
-          : '<b>내 말</b>을 눌러 이동하세요 <em>남은 벽 없음</em>';
+          ? '버튼 또는 <b>내 말</b> · <b>내 벽 보관대</b>를 눌러 선택하세요'
+          : '버튼 또는 <b>내 말</b>을 눌러 이동하세요 (남은 벽 없음)';
     $('#btn-rotate').hidden = mode !== 'wall';
+  }
+
+  setUndo(visible, enabled) {
+    $('#btn-undo').hidden = !visible;
+    $('#btn-undo').disabled = !enabled;
   }
 
   setOrientation(o) {
