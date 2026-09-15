@@ -2,6 +2,7 @@ import './ui/styles.css';
 import { BoardView } from './render/view.js';
 import { GameSession } from './game/state.js';
 import { legalPawnMoves, checkWall } from './game/rules.js';
+import { resolveTap } from './game/input.js';
 import { worldToCell, worldToAnchor } from './render/layout.js';
 import { colorById } from './render/pieces.js';
 import { initSetup } from './ui/setup.js';
@@ -72,6 +73,7 @@ function refreshHints() {
 
 async function perform(action) {
   if (busy) return;
+  const s = session;
   const prev = game();
   let next;
   try {
@@ -97,6 +99,8 @@ async function perform(action) {
   } else {
     await view.animateWall(prev.current, action);
   }
+  // 애니메이션 도중 메뉴에서 다시 시작/새 게임을 누른 경우: 옛 게임의 후속 처리를 하지 않음
+  if (session !== s) return;
 
   busy = false;
   hud.setBusy(false);
@@ -114,12 +118,14 @@ function updateUndo() {
 async function undo() {
   if (busy || !session?.canUndo()) return;
   setMode(null, { silent: true, instant: true });
+  const s = session;
   const a = session.undo();
   busy = true;
   hud.setBusy(true);
   view.clearHints();
   if (a.type === 'move') await view.undoMove(a.player, game().players[a.player]);
   else await view.undoWall(a.player);
+  if (session !== s) return;
   busy = false;
   hud.setBusy(false);
   onTurnStart(true);
@@ -127,6 +133,7 @@ async function undo() {
 }
 
 async function onWin(pi) {
+  const s = session;
   const g = game();
   hud.update(g, session.config);
   hud.setMode(null, 0);
@@ -138,7 +145,7 @@ async function onWin(pi) {
   $('#win-title').style.setProperty('--pc', colorOf(pi));
   $('#win-sub').textContent = `총 ${g.turn}수 · 남은 벽 ${g.players[pi].walls}개`;
   await view.celebrate(pi);
-  overlay('#win', true);
+  if (session === s) overlay('#win', true);
 }
 
 // ---------- 선택 상태 ----------
@@ -171,69 +178,65 @@ function rotate() {
   refreshHints();
 }
 
-// 말 또는 벽 보관대를 눌렀을 때
-function selectTarget(target) {
-  if (target.player !== game().current) {
-    hud.toast(`지금은 ${nameOf(game().current)} 차례입니다`, 'info');
-    sfx.error();
-    return;
-  }
-  if (target.kind === 'pawn') setMode(mode === 'move' ? null : 'move');
-  else setMode(mode === 'wall' ? null : 'wall');
-}
-
 const legalMoveAt = (p) => {
   if (!p) return null;
   const c = worldToCell(p.x, p.z);
   return legalPawnMoves(game()).find((m) => m.x === c.x && m.y === c.y) ?? null;
 };
 
-view.on('hover', (p, target) => {
+// 포인터 위치 → 해석 결과 (클릭과 마우스 올림이 같은 규칙을 사용)
+function interpret(p, targets) {
+  const moveAt = mode === 'move' ? legalMoveAt(p) : null;
+  const anchor = p ? worldToAnchor(p.x, p.z) : null;
+  const result = resolveTap({ mode, current: game().current, targets, moveAt, anchor });
+  return { result, moveAt, anchor };
+}
+
+view.on('hover', (p, targets) => {
   if (!playing()) return;
-  const cur = game().current;
-  const onMine = target && target.player === cur;
-  let pointer = !!onMine;
-  if (mode === 'move') {
-    view.setHoverCell(p ? worldToCell(p.x, p.z) : null);
-    if (legalMoveAt(p)) pointer = true;
-  } else if (mode === 'wall' && !pending) {
-    const a = !onMine && p ? worldToAnchor(p.x, p.z) : null;
-    hoverWall = a && a.inside ? { x: a.x, y: a.y, o: orientation } : null;
-    if (hoverWall) pointer = true;
+  const { result, anchor } = interpret(p, targets);
+  if (mode === 'move') view.setHoverCell(p ? worldToCell(p.x, p.z) : null);
+  if (mode === 'wall' && !pending) {
+    hoverWall = result.type === 'wall' ? { x: anchor.x, y: anchor.y, o: orientation } : null;
     refreshHints();
   }
+  const pointer = ['move', 'wall', 'select'].includes(result.type);
   view.stage.renderer.domElement.style.cursor = pointer ? 'pointer' : '';
 });
 
-view.on('tap', (p, target, pointerType) => {
+view.on('tap', (p, targets, pointerType) => {
   if (!playing()) return;
   sfx.unlock();
+  const { result, moveAt, anchor } = interpret(p, targets);
 
-  // 1) 말 선택 중: 빛나는 칸을 누르면 이동 (말에 가려진 칸 우선)
-  if (mode === 'move') {
-    const mv = legalMoveAt(p);
-    if (mv && !(target && target.kind === 'walls')) {
-      perform({ type: 'move', x: mv.x, y: mv.y });
+  switch (result.type) {
+    case 'move':
+      perform({ type: 'move', x: moveAt.x, y: moveAt.y });
       return;
-    }
-  }
-
-  // 2) 말 / 벽 보관대를 직접 누르면 선택 전환
-  if (target) {
-    selectTarget(target);
-    return;
-  }
-
-  // 3) 벽 선택 중: 홈 위치를 눌러 벽 놓기
-  if (mode === 'wall' && p) {
-    const a = worldToAnchor(p.x, p.z);
-    if (!a.inside) {
+    case 'select':
+      if (result.kind === 'pawn') setMode(mode === 'move' ? null : 'move');
+      else setMode(mode === 'wall' ? null : 'wall');
+      return;
+    case 'notYourTurn':
+      hud.toast(`지금은 ${nameOf(game().current)} 차례입니다`, 'info');
+      sfx.error();
+      return;
+    case 'cancelPending':
       pending = null;
       hud.setConfirm(false);
       refreshHints();
       return;
-    }
-    const wall = { x: a.x, y: a.y, o: orientation };
+    case 'deselect':
+      setMode(null);
+      return;
+    case 'hint':
+      hud.toast('버튼을 누르거나, 내 말 / 내 벽 보관대를 눌러 선택하세요', 'info');
+      return;
+  }
+
+  // 벽 선택 중: 홈 위치를 눌러 벽 놓기
+  {
+    const wall = { x: anchor.x, y: anchor.y, o: orientation };
     const res = checkWall(game(), wall);
     if (pointerType !== 'mouse') {
       const same = pending && pending.x === wall.x && pending.y === wall.y && pending.o === wall.o;
@@ -254,12 +257,7 @@ view.on('tap', (p, target, pointerType) => {
       hud.toast(res.reason);
       sfx.error();
     }
-    return;
   }
-
-  // 4) 아무것도 선택하지 않은 상태에서 보드를 누름
-  if (mode === null) hud.toast('내 말을 누르면 이동, 내 벽 보관대를 누르면 벽 놓기', 'info');
-  else if (mode === 'move') setMode(null);
 });
 
 view.on('rotate', () => rotate());

@@ -95,34 +95,64 @@ export class BoardView {
   bindPointer() {
     const el = this.stage.renderer.domElement;
     let down = null;
+    const activePointers = new Set();
     const pick = (e) => {
       const r = el.getBoundingClientRect();
       const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       this.raycaster.setFromCamera(ndc, this.stage.camera);
       const hit = new THREE.Vector3();
       const point = this.raycaster.ray.intersectPlane(this.plane, hit) ? hit : null;
-      const obj = this.raycaster.intersectObjects(this.hitTargets, false)[0];
-      return { point, target: obj ? obj.object.userData.hit : null };
+      // 맞은 판정 영역 전부 (가까운 순, 중복 제거). 말은 실제 모양에도 맞았는지(precise) 표시
+      const targets = [];
+      for (const h of this.raycaster.intersectObjects(this.hitTargets, false)) {
+        const t = h.object.userData.hit;
+        if (targets.some((x) => x.kind === t.kind && x.player === t.player)) continue;
+        const precise =
+          t.kind === 'pawn' &&
+          this.raycaster.intersectObjects(
+            this.pawns[t.player].children.filter((c) => !c.userData.hit),
+            false,
+          ).length > 0;
+        targets.push({ ...t, precise });
+      }
+      return { point, targets };
     };
+    const release = (e) => activePointers.delete(e.pointerId);
+    // 캔버스 밖에서 손을 떼도 누락되지 않게 (남아 있으면 이후 모든 탭이 멀티터치로 오인됨)
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
     el.addEventListener('pointerdown', (e) => {
-      down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+      activePointers.add(e.pointerId);
+      // 두 손가락(확대/회전) 제스처는 탭으로 보지 않음
+      down = activePointers.size > 1 ? { multi: true } : { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
       if (e.button === 2) this.handlers.rotate?.();
+    });
+    el.addEventListener('pointercancel', (e) => {
+      release(e);
+      down = null;
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointermove', (e) => {
       if (e.pointerType !== 'mouse' || e.buttons) return;
-      const { point, target } = pick(e);
-      this.handlers.hover?.(point, target);
+      const { point, targets } = pick(e);
+      this.handlers.hover?.(point, targets);
     });
-    el.addEventListener('pointerleave', () => this.handlers.hover?.(null, null));
+    el.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') this.handlers.hover?.(null, []);
+    });
     el.addEventListener('pointerup', (e) => {
-      if (!down || down.id !== e.pointerId || e.button === 2) return;
+      const wasMulti = activePointers.size > 1;
+      release(e);
+      if (!down || down.multi || wasMulti || down.id !== e.pointerId || e.button === 2) {
+        if (activePointers.size === 0) down = null;
+        return;
+      }
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       const dt = performance.now() - down.t;
       down = null;
       if (moved > 10 || dt > 600) return;
-      const { point, target } = pick(e);
-      if (point || target) this.handlers.tap?.(point, target, e.pointerType);
+      const { point, targets } = pick(e);
+      if (point || targets.length) this.handlers.tap?.(point, targets, e.pointerType);
     });
   }
 
@@ -164,8 +194,9 @@ export class BoardView {
       this.hitTargets.push(pawnHit);
 
       const a = SEAT_ANGLE[pl.seat];
-      const trayHit = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.4, 2.9), HIT_MAT);
-      trayHit.position.set(Math.sin(a) * TRAY_DIST, BASE_TOP + 0.6, Math.cos(a) * TRAY_DIST);
+      // 보관대 판정: 서 있는 벽 높이 정도로 낮게 (보드의 홈을 가리지 않도록)
+      const trayHit = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.8, 2.6), HIT_MAT);
+      trayHit.position.set(Math.sin(a) * TRAY_DIST, BASE_TOP + 0.4, Math.cos(a) * TRAY_DIST);
       trayHit.rotation.y = a;
       trayHit.userData.hit = { kind: 'walls', player: i };
       this.stage.scene.add(trayHit);
@@ -414,7 +445,9 @@ export class BoardView {
     this.effects.confetti([this.colors[pi], '#f5d27a', '#fff4dc', '#c9953f']);
     this.effects.burst(base.clone().setY(BOARD_TOP + 0.3), { color: 0xffd27a, count: 60, speed: 4, size: 0.35, up: 4, life: 1.4 });
     const light = this.stage.lights.warmSpot;
-    const baseIntensity = light.intensity;
+    // 연출이 겹쳐도 밝기가 누적되지 않도록 기준값 고정
+    this.baseSpotIntensity ??= light.intensity;
+    const baseIntensity = this.baseSpotIntensity;
     tween({
       duration: 3,
       easing: ease.linear,
@@ -431,6 +464,7 @@ export class BoardView {
       },
     });
     pawn.rotation.y = 0;
+    if (!pawn.parent) return; // 연출 도중 새 게임이 시작됨
     this.stage.controls.autoRotate = true;
     this.stage.controls.autoRotateSpeed = 0.8;
   }
