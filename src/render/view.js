@@ -174,6 +174,7 @@ export class BoardView {
     this.ghost.visible = false;
     this.effects.clearAll();
     this.effects.setTurnRing(null);
+    this.effects.setGoalLine(null);
   }
 
   setupGame(game, playerConfigs) {
@@ -283,6 +284,10 @@ export class BoardView {
       s.material.emissiveIntensity = i === pi ? 1.6 : 0.25;
       s.scale.y = i === pi ? 1.6 : 1;
     });
+    // 목표 변(도달해야 하는 끝줄) 표시
+    const goalAngle = SEAT_ANGLE[(game.players[pi].seat + 2) % 4];
+    this.effects.setGoalLine(game.winner === null ? goalAngle : null, this.colors[pi]);
+
     const a = SEAT_ANGLE[game.players[pi].seat];
     this.trayGlow.position.set(Math.sin(a) * TRAY_DIST, 0, Math.cos(a) * TRAY_DIST);
     this.trayGlow.rotation.y = a;

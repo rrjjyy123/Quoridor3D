@@ -1,6 +1,6 @@
 // 연출: 이동 가능 칸 표시, 현재 차례 링, 먼지 파티클, 승리 꽃가루
 import * as THREE from 'three';
-import { BOARD_TOP, cellToWorld, CELL } from './layout.js';
+import { BOARD_TOP, cellToWorld, CELL, INNER, PITCH } from './layout.js';
 
 function radialTexture(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)', ring = false) {
   const c = document.createElement('canvas');
@@ -18,6 +18,22 @@ function radialTexture(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,
   }
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+// 목표 변 쪽이 밝고 안쪽으로 사라지는 그라데이션
+function edgeTexture() {
+  const c = document.createElement('canvas');
+  c.width = 8;
+  c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 128);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); // 보드 안쪽
+  g.addColorStop(0.55, 'rgba(255,255,255,0.28)');
+  g.addColorStop(0.86, 'rgba(255,255,255,0.85)');
+  g.addColorStop(1, 'rgba(255,255,255,1)'); // 목표 변
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 8, 128);
   return new THREE.CanvasTexture(c);
 }
 
@@ -48,8 +64,56 @@ export class Effects {
     this.turnRing.renderOrder = 3;
     this.scene.add(this.turnRing);
 
+    // 현재 차례 플레이어가 도달해야 하는 변 표시
+    this.goalLine = new THREE.Object3D();
+    const depth = PITCH * 2.1;
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(INNER + 0.5, depth),
+      new THREE.MeshBasicMaterial({
+        map: edgeTexture(),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        color: 0xffd27a,
+      }),
+    );
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.set(0, BOARD_TOP + 0.014, INNER / 2 - depth / 2);
+    glow.renderOrder = 2;
+    // 목표 변 바로 앞의 선명한 선
+    const bar = new THREE.Mesh(
+      new THREE.PlaneGeometry(INNER + 0.2, 0.16),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        color: 0xffd27a,
+      }),
+    );
+    bar.rotation.x = -Math.PI / 2;
+    bar.position.set(0, BOARD_TOP + 0.016, INNER / 2 - 0.12);
+    bar.renderOrder = 3;
+    this.goalLine.add(bar);
+    this.goalLineBarMat = bar.material;
+
+    this.goalLine.add(glow);
+    this.goalLine.visible = false;
+    this.scene.add(this.goalLine);
+    this.goalLineMat = glow.material;
+
     this.particles = [];
     stage.onFrame.add((dt, t) => this.update(dt, t));
+  }
+
+  // 목표 변 표시: angle = 그 변의 방위각, null 이면 숨김
+  setGoalLine(angle, colorHex) {
+    this.goalLine.visible = angle !== null;
+    if (angle === null) return;
+    this.goalLine.rotation.y = angle;
+    this.goalLineMat.color.set(colorHex).lerp(new THREE.Color(0xfff2cc), 0.6); // 어두운 말 색도 잘 보이게
+    this.goalLineBarMat.color.copy(this.goalLineMat.color);
   }
 
   setTurnRing(obj, colorHex) {
@@ -162,6 +226,12 @@ export class Effects {
       m.material.opacity = born * (hot ? 1 : 0.5 + Math.sin(t * 4) * 0.15);
       const s = hot ? 1.08 : 0.9 + Math.sin(t * 4) * 0.03;
       m.scale.set(s, s, s);
+    }
+
+    if (this.goalLine.visible) {
+      const pulse = Math.sin(t * 2.2);
+      this.goalLineMat.opacity = 0.62 + pulse * 0.2;
+      this.goalLineBarMat.opacity = 0.85 + pulse * 0.15;
     }
 
     if (this.turnRing.visible && this.turnRingTarget) {
